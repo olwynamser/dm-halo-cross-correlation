@@ -1,156 +1,167 @@
-# Dark Matter Cross-Correlation Pipeline
+Dark Matter Cross-Correlation Pipeline
+Goal
+Cross-correlate Fermi LAT gamma-ray data with Gaia DR3 stellar halo kinematics to test for spatial coincidence between the gamma-ray halo component and the stellar mass distribution of the Milky Way halo.
 
-## Goal
+If the gamma-ray halo component correlates spatially with the stellar halo → the signal is tied to the halo mass distribution. This is consistent with dark matter annihilation, but baryonic sources (millisecond pulsars, inverse Compton) cannot yet be excluded.
 
-Verify the Totani (2025) dark matter signal by cross-correlating the Fermi LAT
-gamma-ray residual at the Galactic Center with an independent dark matter halo
-map derived from Gaia DR3 stellar kinematics.
 
-**If the gamma-ray excess has the same spatial shape as the gravitational dark
-matter halo → two independent methods see the same thing → strong evidence for
-dark matter annihilation.**
+Results Summary
+v1.0 — Full-sky GALPROP residual (10–50 GeV)
+Metric
+Value
+Spearman ρ
++0.080
+Significance
+3.3σ
+Bootstrap 95% CI
+[0.041, 0.122]
+Photons
+687,491
+Gaia stars
+500,000
 
----
 
-## Quick Start
+Validation: Sculptor dwarf spheroidal σ_r = 9.3 km/s (literature: 9.2 km/s).
+v2.0 — Totani 21 GeV halo template
+Using a professionally decomposed halo component map (Totani, priv. comm.; southern sky patch b ∈ [−60°, −28°]):
 
-```bash
+Metric
+Value
+Spearman ρ
++0.194
+Significance
+11.6σ
+Bootstrap 95% CI
+[0.161, 0.227]
+Valid pixels
+3,394
+
+
+The increase relative to v1.0 reflects both the improved template and the different sky region.
+Selection stringency test
+Selection
+Criteria
+ρ
+σ
+Loose
+pm > 3, plx < 1.0
++0.174
+10.4
+Standard
+pm > 5, plx < 0.5
++0.194
+11.3
+Strict
+pm > 8, plx < 0.3
++0.226
+13.9
+Very strict
+pm > 12, plx < 0.2
++0.306
+19.1
+Disk control
+pm < 3, plx > 2.0
++0.017
+0.0
+
+Null tests
+Test
+Result
+Rotation 180°/270°
+ρ → 0 (signal is spatial)
+Pixel shuffle (1000 iter)
+11.2σ
+Latitude detrending
+ρ = 0.141, 8.2σ (persists)
+
+Energy dependence (GALPROP)
+Band
+ρ
+Note
+1–10 GeV
+−0.075
+Sign inversion (background-dominated)
+10–50 GeV
++0.080
+Positive (3.3σ)
+
+
+
+Limitations
+Totani halo map covers only b ∈ [−60°, −28°] — partial sky
+Single energy band (21 GeV) — cannot distinguish DM from baryonic halo sources (MSPs, inverse Compton)
+Correlation may trace gravitational potential without requiring DM
+Bootstrap CIs assume pixel independence — spatial autocorrelation not corrected
+Gaia queries use random 500K subsamples, not full catalog
+
+
+Quick Start
 # 1. Install dependencies
+
 pip install -r requirements.txt
 
 # 2. Download Fermi data (follow manual instructions in output)
-python scripts/01_download_fermi.py
+
+python 01_download_fermi.py
 
 # 3. Build gamma-ray residual map
-python scripts/02_fermi_residual.py
+
+python 02_fermi_residual.py
 
 # 4. Build dark matter halo map from Gaia
-python scripts/03_gaia_halo.py
 
-# 5. Cross-correlate and measure significance
-python scripts/04_cross_correlation.py
-```
+python 03_gaia_halo.py
 
-All results will be in the `results/` folder.
+# 5. Run cross-correlation
 
----
+python 04_cross_correlation.py
 
-## What You Need
 
-| Resource | Minimum | Recommended |
-|----------|---------|-------------|
-| RAM | 8 GB | 32 GB |
-| Disk | 20 GB | 100 GB |
-| Internet | Yes (for data download) | Fast |
-| Python | 3.9+ | 3.11 |
-| GPU | Not needed | Not needed |
-| Time | 1-2 days | 3-5 days (with full fermipy) |
+Pipeline
+Path A (v1.0):
 
-Works on: Linux, Mac, Windows (WSL2).
-Google Colab Pro ($10/mo) is sufficient.
+  Fermi LAT (10-50 GeV) → HEALPix → GALPROP subtraction → Residual map ─┐
 
----
+                                                                          ├→ Spearman ρ
 
-## Pipeline Overview
+  Gaia DR3 (halo stars) → HEALPix → Density map ────────────────────────┘
 
-### Step A: Fermi Gamma-Ray Residual (Scripts 01, 02)
+Path B (v2.0):
 
-1. Download Fermi LAT photon data (10-50 GeV, 40° around GC)
-2. Subtract known sources (4FGL catalog) and diffuse Galactic model
-3. What remains = potential dark matter signal (the "Galactic Center Excess")
-4. Output: HEALPix map of residual gamma-ray emission
+  Totani 21 GeV halo → HEALPix rebinning → Template map ────────────────┐
 
-The script has two modes:
-- **Full mode**: Uses `fermipy` for proper likelihood analysis (recommended)
-- **Simplified mode**: Direct photon binning with smoothing subtraction (faster)
+                                                                          ├→ Spearman ρ
 
-### Step B: Gaia Dark Halo Map (Script 03)
+  Gaia DR3 (halo stars) → HEALPix → Density map ────────────────────────┘
 
-1. Query Gaia DR3 for halo stars with 3D velocities (5-50 kpc from GC)
-2. Compute radial velocity dispersion σ_r in each angular bin
-3. σ² is a proxy for the depth of the gravitational potential → dark matter density
-4. Output: HEALPix map of projected dark matter density
 
-If Gaia query fails, the script generates synthetic NFW halo data for pipeline testing.
+Files
+File
+Description
+01_download_fermi.py
+Fermi LAT data query and download
+02_fermi_residual.py
+GALPROP model subtraction
+03_gaia_halo.py
+Gaia DR3 halo star selection and mapping
+04_cross_correlation.py
+Spearman correlation with bootstrap
+professional_pipeline.py
+Full automated pipeline
+Untitled0 (1).ipynb
+Analysis notebook with all tests
 
-### Step C: Cross-Correlation (Script 04)
 
-1. **Pixel correlation**: Pearson r and Spearman ρ between maps
-2. **Angular cross-spectrum**: C_ℓ decomposition → which angular scales correlate?
-3. **Shuffle test**: Randomize one map 10,000× to estimate significance in σ
-4. **Radial profile comparison**: Do both maps fall off the same way from GC?
 
-Output: significance in σ, p-value, and diagnostic plots.
+Citation
+Amser, O. (2026). Cross-correlation of Gaia DR3 Stellar Kinematics with Fermi LAT 
 
----
+Gamma-ray Residual and Halo Template: Evidence for Spatial Coincidence up to 19.1σ. 
 
-## Interpreting Results
+Zenodo. https://doi.org/10.5281/zenodo.19221429
 
-| Significance | Meaning | Action |
-|-------------|---------|--------|
-| < 2σ | No correlation | Signal is likely not dark matter |
-| 2-3σ | Hint | Promising, needs more data / better method |
-| 3-5σ | Evidence | Strong indication; write paper |
-| > 5σ | Discovery | Contact arXiv immediately |
 
----
-
-## Key References
-
-- Totani (2025), "20 GeV halo-like excess", JCAP 2025(11):080
-- Ackermann et al. (2017), "The Fermi Galactic Center GeV Excess"
-- McMillan (2017), "The mass distribution of the Milky Way"
-- Fermipy: Wood et al. (2017), PoS ICRC2017, 824
-
----
-
-## Output Files
-
-| File | Script | Description |
-|------|--------|-------------|
-| `results/fermi_residual_healpix.fits` | 02 | Gamma-ray residual HEALPix map |
-| `results/fermi_residual_plot.png` | 02 | Visualization of residual |
-| `results/gaia_dm_halo_healpix.fits` | 03 | DM halo density HEALPix map |
-| `results/gaia_halo_plot.png` | 03 | Visualization of halo |
-| `results/cross_correlation_results.txt` | 04 | Significance summary |
-| `results/cross_correlation_plot.png` | 04 | Diagnostic plots |
-
----
-
-## File Structure
-
-```
-dark_matter_project/
-├── README.md
-├── requirements.txt
-├── scripts/
-│   ├── 01_download_fermi.py    — Data acquisition
-│   ├── 02_fermi_residual.py    — Gamma-ray analysis
-│   ├── 03_gaia_halo.py         — Gaia halo reconstruction
-│   └── 04_cross_correlation.py — Statistical analysis
-├── data/                        — Downloaded data (gitignore)
-│   ├── fermi/
-│   └── gaia/
-└── results/                     — Output maps and plots
-```
-
----
-
-## Limitations & Caveats
-
-- The simplified Fermi analysis (no fermipy) is a rough approximation.
-  For publication-quality results, use the full fermipy pipeline.
-- The Jeans equation approach for the DM halo is simplified. A full
-  analysis would use galpy or AGAMA for orbit-based modeling.
-- Systematic uncertainties in the Galactic diffuse model are the
-  dominant source of error. The cross-correlation with Gaia is
-  specifically designed to be independent of this model.
-- The Gaia stellar sample at large distances (>15 kpc) is incomplete.
-  This limits the halo map resolution in outer regions.
-
----
-
-## License
-
-This pipeline is released into the public domain. Use it for anything.
-If you publish results, cite Totani (2025) and this pipeline.
+Acknowledgements
+Prof. Tomonori Totani (University of Tokyo) — 21 GeV halo component map
+Prof. Oscar Macias (San Francisco State University) — facilitating contact with C. Eckner
+ESA Gaia DR3, NASA Fermi LAT
